@@ -32,10 +32,17 @@ class SitemapParser:
         return sitemap_urls
 
     def get_article_urls(self, sitemap_url):
-        response = requests.get(sitemap_url)
-        soup = BeautifulSoup(response.content, 'xml')
-        urls = [loc.text for loc in soup.find_all('loc')]
-        return urls
+        try:
+            print(f"Fetching sitemap: {sitemap_url}")
+            response = requests.get(sitemap_url)
+            response.raise_for_status()  # Raise an error for HTTP issues
+            soup = BeautifulSoup(response.content, 'xml')
+            urls = [loc.text for loc in soup.find_all('loc')]
+            print(f"Found {len(urls)} articles in sitemap.")
+            return urls
+        except Exception as e:
+            print(f"Error fetching sitemap {sitemap_url}: {e}")
+            return []
 
 
 class ArticleScraper:
@@ -43,52 +50,79 @@ class ArticleScraper:
         self.url = url
 
     def scrape(self):
-        response = requests.get(self.url)
-        soup = BeautifulSoup(response.content, 'html.parser')
+        try:
+            print(f"Scraping article: {self.url}")
+            response = requests.get(self.url)
+            response.raise_for_status()  # Raise an error for HTTP issues
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        script_tag = soup.find('script', string=lambda t: t and 'tawsiyat' in t)  # Updated to use 'string'
+            # Check if the page has a recognizable structure for an article
+            article_content = soup.find_all('p')
+            if not article_content:
+                print(f"Skipping non-article page: {self.url}")
+                return None
 
-        metadata = {}
+            # Initialize metadata dictionary
+            metadata = {}
 
-        if script_tag:
-            try:
-                metadata = json.loads(script_tag.string)  # Parse JSON if valid
-            except json.JSONDecodeError:
-                print(f"Warning: Failed to parse JSON for article {self.url}")
+            # Try to extract JSON-LD metadata
+            json_ld_script = soup.find('script', type='application/ld+json')
+            if json_ld_script:
+                try:
+                    metadata = json.loads(json_ld_script.string)
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Failed to parse JSON-LD for article {self.url}. Error: {e}")
+                    print(f"Raw JSON data: {json_ld_script.string}")
 
-        # Extract main article content from <p> tags
-        content = ' '.join([p.get_text() for p in soup.find_all('p')])
+            # If JSON-LD is not found, check for meta tags
+            if not metadata:
+                metadata = {
+                    'title': soup.find('meta', attrs={'property': 'og:title'})['content'] if soup.find('meta', attrs={'property': 'og:title'}) else 'No Title',
+                    'keywords': soup.find('meta', attrs={'name': 'keywords'})['content'].split(',') if soup.find('meta', attrs={'name': 'keywords'}) else [],
+                    'thumbnail': soup.find('meta', attrs={'property': 'og:image'})['content'] if soup.find('meta', attrs={'property': 'og:image'}) else 'No Thumbnail',
+                    'publication_date': soup.find('meta', attrs={'property': 'article:published_time'})['content'] if soup.find('meta', attrs={'property': 'article:published_time'}) else 'No Date',
+                    'last_updated_date': soup.find('meta', attrs={'property': 'article:modified_time'})['content'] if soup.find('meta', attrs={'property': 'article:modified_time'}) else 'No Date',
+                    'author': soup.find('meta', attrs={'name': 'author'})['content'] if soup.find('meta', attrs={'name': 'author'}) else 'No Author'
+                }
 
-        return Article(
-            url=self.url,
-            post_id=self.extract_post_id(),
-            title=metadata.get('title', ''),
-            keywords=metadata.get('keywords', []),
-            thumbnail=metadata.get('thumbnail', ''),
-            publication_date=metadata.get('publication_date', ''),
-            last_updated_date=metadata.get('last_updated_date', ''),
-            author=metadata.get('author', ''),
-            content=content
-        )
+            # Extract main article content from <p> tags
+            content = ' '.join([p.get_text() for p in article_content])
+
+            return Article(
+                url=self.url,
+                post_id=self.extract_post_id(),
+                title=metadata.get('title', 'No Title'),
+                keywords=metadata.get('keywords', []),
+                thumbnail=metadata.get('thumbnail', 'No Thumbnail'),
+                publication_date=metadata.get('publication_date', 'No Date'),
+                last_updated_date=metadata.get('last_updated_date', 'No Date'),
+                author=metadata.get('author', 'No Author'),
+                content=content
+            )
+        except Exception as e:
+            print(f"Error scraping article {self.url}: {e}")
+            return None
 
     def extract_post_id(self):
         return self.url.split('-')[-1]
 
-class FileUtility:
-    def __init__(self):
-        pass
 
-    @staticmethod
-    def save(articles, year, month):
-        if not articles:
-            print("No articles to save.")
+class FileUtility:
+    def __init__(self, year, month):
+        self.year = year
+        self.month = month
+        self.directory = f'./data/{self.year}_{self.month}'
+        os.makedirs(self.directory, exist_ok=True)
+
+    def save_article(self, article):
+        if not article:
+            print("No article to save.")
             return
-        directory = f'./data/{year}'
-        os.makedirs(directory, exist_ok=True)
-        filepath = f'{directory}/articles_{year}_{month}.json'
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump([asdict(article) for article in articles], f, ensure_ascii=False, indent=4)
-        print(f"Saved {len(articles)} articles to {filepath}")
+        filename = f'{self.directory}/article_{article.post_id}.json'
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(asdict(article), f, ensure_ascii=False, indent=4)
+        print(f"Saved article to {filename}")
+
 
 def main():
     start_year = 2020
@@ -105,27 +139,23 @@ def main():
             year, month = sitemap_url.split('-')[-2], sitemap_url.split('-')[-1].replace('.xml', '')
             article_urls = parser.get_article_urls(sitemap_url)
 
-            if not article_urls:  # Updated to handle case where no articles are found
+            if not article_urls:
                 print("No articles found.")
                 continue
 
             print(f"Found {len(article_urls)} articles.")
 
-            articles = []
+            file_utility = FileUtility(year, month)
             for url in article_urls:
                 if total_articles >= max_articles:
                     break
                 scraper = ArticleScraper(url)
                 article = scraper.scrape()
-                articles.append(article)
-                total_articles += 1
+                if article:  # Only save valid articles
+                    file_utility.save_article(article)
+                    total_articles += 1
 
-            # Save the articles to a JSON file
-            if articles:
-                file_utility = FileUtility(year, month)
-                file_utility.save(articles)
-                print(f"Saved {len(articles)} articles to {file_utility.filename}")
-                print(f"Processed {len(articles)} articles for {year}-{month}. Total so far: {total_articles}")
+            print(f"Processed {len(article_urls)} articles for {year}-{month}. Total so far: {total_articles}")
 
             if total_articles >= max_articles:
                 print(f"Reached {max_articles} articles. Stopping.")
