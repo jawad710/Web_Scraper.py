@@ -123,8 +123,8 @@ def main():
                     total_articles += 1
 
             # Save the articles to a JSON file
-            FileUtility.save(articles)
-            print(f"Saved {len(articles)} articles to {FileUtility.filename}")
+            FileUtility.save(articles,year,month)
+            print(f"Processed {len(articles)} articles for {year}-{month}. Total so far: {total_articles}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
