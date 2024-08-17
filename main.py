@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 import json
 from dataclasses import dataclass, asdict
 import os
-from urllib.parse import urljoin
 
 
 @dataclass
@@ -20,20 +19,27 @@ class Article:
 
 
 class SitemapParser:
-    def __init__(self, sitemap_index_url):
-        self.sitemap_index_url = sitemap_index_url
+    def __init__(self, base_url, years):
+        self.base_url = base_url
+        self.years = years
 
     def get_monthly_sitemaps(self):
-        response = requests.get(self.sitemap_index_url)
-        soup = BeautifulSoup(response.content, 'xml')
-        sitemaps = [loc.text for loc in soup.find_all('loc')]
+        sitemaps = []
+        for year in self.years:
+            for month in range(1, 13):  # Loop through all months
+                month_str = f"{month:02d}"  # Format month as two digits
+                sitemap_url = f"{self.base_url}/sitemap-{year}-{month_str}.xml"
+                sitemaps.append(sitemap_url)
         return sitemaps
 
     def get_article_urls(self, sitemap_url):
         response = requests.get(sitemap_url)
-        soup = BeautifulSoup(response.content, 'xml')
-        urls = [loc.text for loc in soup.find_all('loc')]
-        return urls
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'xml')
+            urls = [loc.text for loc in soup.find_all('loc')]
+            return urls
+        else:
+            return []
 
 
 class ArticleScraper:
@@ -42,63 +48,86 @@ class ArticleScraper:
 
     def scrape(self):
         response = requests.get(self.url)
-        soup = BeautifulSoup(response.content, 'html.parser')
+        if response.status_code == 200 :
 
-        # Extract metadata from the <script> tag containing text/tawsiyat
-        script_tag = soup.find('script', text=lambda t: t and 'tawsiyat' in t)
-        metadata = json.loads(script_tag.string) if script_tag else {}
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extract main article content from <p> tags
-        content = ' '.join([p.get_text() for p in soup.find_all('p')])
+            # Extract metadata from the <script> tag containing text/tawsiyat
+            script_tag = soup.find('script', text=lambda t: t and 'tawsiyat' in t)
+            metadata = json.loads(script_tag.string) if script_tag else {}
 
-        return Article(
-            url=self.url,
-            post_id=self.extract_post_id(),
-            title=metadata.get('title', ''),
-            keywords=metadata.get('keywords', []),
-            thumbnail=metadata.get('thumbnail', ''),
-            publication_date=metadata.get('publication_date', ''),
-            last_updated_date=metadata.get('last_updated_date', ''),
-            author=metadata.get('author', ''),
-            content=content
-        )
+            # Extract main article content from <p> tags
+            content = ' '.join([p.get_text() for p in soup.find_all('p')])
+
+            return Article(
+                url=self.url,
+                post_id=self.extract_post_id(),
+                title=metadata.get('title', ''),
+                keywords=metadata.get('keywords', []),
+                thumbnail=metadata.get('thumbnail', ''),
+                publication_date=metadata.get('publication_date', ''),
+                last_updated_date=metadata.get('last_updated_date', ''),
+                author=metadata.get('author', ''),
+                content=content
+            )
+        else:
+            return None
 
     def extract_post_id(self):
         return self.url.split('-')[-1]
 
 
 class FileUtility:
-    def __init__(self, year, month):
-        self.year = year
-        self.month = month
-        self.filename = f'articles_{self.year}_{self.month}.json'
+    def __init__(self):
+        pass
 
-    def save(self, articles):
-        os.makedirs(f'./data/{self.year}', exist_ok=True)
-        filepath = f'./data/{self.year}/{self.filename}'
+    @staticmethod
+    def save(articles, year, month):
+        if not articles:
+            print("No articles to save.")
+            return
+        directory = f'./data/{year}'
+        os.makedirs(directory, exist_ok=True)
+        filepath = f'{directory}/articles_{year}_{month}.json'
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump([asdict(article) for article in articles], f, ensure_ascii=False, indent=4)
-
+        print(f"Saved {len(articles)} articles to {filepath}")
 
 def main():
     sitemap_index_url = "https://www.almayadeen.net/sitemaps/sitemap.xml"
-    parser = SitemapParser(sitemap_index_url)
+    years=[2020,2021,2022,2023,2024]
+    parser = SitemapParser(sitemap_index_url,years)
+    total_articles = 0
+    max_articles = 10000
 
-    # Process each monthly sitemap
-    for sitemap_url in parser.get_monthly_sitemaps():
-        year, month = sitemap_url.split('-')[-2], sitemap_url.split('-')[-1].replace('.xml', '')
-        article_urls = parser.get_article_urls(sitemap_url)
+    try:
+        # Process each monthly sitemap
+        for sitemap_url in parser.get_monthly_sitemaps():
+            if total_articles >= max_articles:
+                print(f"Reached the limit of {max_articles} articles.")
+                break
 
-        articles = []
-        for url in article_urls:
-            scraper = ArticleScraper(url)
-            article = scraper.scrape()
-            articles.append(article)
+            year, month = sitemap_url.split('-')[-2], sitemap_url.split('-')[-1].replace('.xml', '')
+            article_urls = parser.get_article_urls(sitemap_url)
 
-        # Save the articles to a JSON file
-        file_utility = FileUtility(year, month)
-        file_utility.save(articles)
+            print(f"Found {len(article_urls)} articles.")
 
+            articles = []
+            for url in article_urls:
+                if total_articles >= max_articles:
+                    break
+                scraper = ArticleScraper(url)
+                article = scraper.scrape()
+                if article:
+                    articles.append(article)
+                    total_articles += 1
+
+            # Save the articles to a JSON file
+            FileUtility.save(articles)
+            print(f"Saved {len(articles)} articles to {FileUtility.filename}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
