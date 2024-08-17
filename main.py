@@ -19,27 +19,23 @@ class Article:
 
 
 class SitemapParser:
-    def __init__(self, base_url, years):
-        self.base_url = base_url
-        self.years = years
+    def __init__(self, start_year, end_year):
+        self.start_year = start_year
+        self.end_year = end_year
 
-    def get_monthly_sitemaps(self):
-        sitemaps = []
-        for year in self.years:
-            for month in range(1, 13):  # Loop through all months
-                month_str = f"{month:02d}"  # Format month as two digits
-                sitemap_url = f"{self.base_url}/sitemap-{year}-{month_str}.xml"
-                sitemaps.append(sitemap_url)
-        return sitemaps
+    def generate_sitemap_urls(self):
+        sitemap_urls = []
+        for year in range(self.start_year, self.end_year + 1):
+            for month in range(1, 13):
+                sitemap_url = f"https://www.almayadeen.net/sitemaps/all/sitemap-{year}-{month}.xml"
+                sitemap_urls.append(sitemap_url)
+        return sitemap_urls
 
     def get_article_urls(self, sitemap_url):
         response = requests.get(sitemap_url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'xml')
-            urls = [loc.text for loc in soup.find_all('loc')]
-            return urls
-        else:
-            return []
+        soup = BeautifulSoup(response.content, 'xml')
+        urls = [loc.text for loc in soup.find_all('loc')]
+        return urls
 
 
 class ArticleScraper:
@@ -48,34 +44,35 @@ class ArticleScraper:
 
     def scrape(self):
         response = requests.get(self.url)
-        if response.status_code == 200 :
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-            soup = BeautifulSoup(response.content, 'html.parser')
+        script_tag = soup.find('script', string=lambda t: t and 'tawsiyat' in t)  # Updated to use 'string'
 
-            # Extract metadata from the <script> tag containing text/tawsiyat
-            script_tag = soup.find('script', text=lambda t: t and 'tawsiyat' in t)
-            metadata = json.loads(script_tag.string) if script_tag else {}
+        metadata = {}
 
-            # Extract main article content from <p> tags
-            content = ' '.join([p.get_text() for p in soup.find_all('p')])
+        if script_tag:
+            try:
+                metadata = json.loads(script_tag.string)  # Parse JSON if valid
+            except json.JSONDecodeError:
+                print(f"Warning: Failed to parse JSON for article {self.url}")
 
-            return Article(
-                url=self.url,
-                post_id=self.extract_post_id(),
-                title=metadata.get('title', ''),
-                keywords=metadata.get('keywords', []),
-                thumbnail=metadata.get('thumbnail', ''),
-                publication_date=metadata.get('publication_date', ''),
-                last_updated_date=metadata.get('last_updated_date', ''),
-                author=metadata.get('author', ''),
-                content=content
-            )
-        else:
-            return None
+        # Extract main article content from <p> tags
+        content = ' '.join([p.get_text() for p in soup.find_all('p')])
+
+        return Article(
+            url=self.url,
+            post_id=self.extract_post_id(),
+            title=metadata.get('title', ''),
+            keywords=metadata.get('keywords', []),
+            thumbnail=metadata.get('thumbnail', ''),
+            publication_date=metadata.get('publication_date', ''),
+            last_updated_date=metadata.get('last_updated_date', ''),
+            author=metadata.get('author', ''),
+            content=content
+        )
 
     def extract_post_id(self):
         return self.url.split('-')[-1]
-
 
 class FileUtility:
     def __init__(self):
@@ -94,21 +91,23 @@ class FileUtility:
         print(f"Saved {len(articles)} articles to {filepath}")
 
 def main():
-    sitemap_index_url = "https://www.almayadeen.net/sitemaps/sitemap.xml"
-    years=[2020,2021,2022,2023,2024]
-    parser = SitemapParser(sitemap_index_url,years)
-    total_articles = 0
+    start_year = 2020
+    end_year = 2024
     max_articles = 10000
+    total_articles = 0
+    parser = SitemapParser(start_year, end_year)
+    sitemap_urls = parser.generate_sitemap_urls()
 
     try:
         # Process each monthly sitemap
-        for sitemap_url in parser.get_monthly_sitemaps():
-            if total_articles >= max_articles:
-                print(f"Reached the limit of {max_articles} articles.")
-                break
-
+        for sitemap_url in sitemap_urls:
+            print(f"Processing sitemap: {sitemap_url}")
             year, month = sitemap_url.split('-')[-2], sitemap_url.split('-')[-1].replace('.xml', '')
             article_urls = parser.get_article_urls(sitemap_url)
+
+            if not article_urls:  # Updated to handle case where no articles are found
+                print("No articles found.")
+                continue
 
             print(f"Found {len(article_urls)} articles.")
 
@@ -118,16 +117,23 @@ def main():
                     break
                 scraper = ArticleScraper(url)
                 article = scraper.scrape()
-                if article:
-                    articles.append(article)
-                    total_articles += 1
+                articles.append(article)
+                total_articles += 1
 
             # Save the articles to a JSON file
-            FileUtility.save(articles,year,month)
-            print(f"Processed {len(articles)} articles for {year}-{month}. Total so far: {total_articles}")
+            if articles:
+                file_utility = FileUtility(year, month)
+                file_utility.save(articles)
+                print(f"Saved {len(articles)} articles to {file_utility.filename}")
+                print(f"Processed {len(articles)} articles for {year}-{month}. Total so far: {total_articles}")
+
+            if total_articles >= max_articles:
+                print(f"Reached {max_articles} articles. Stopping.")
+                break
 
     except Exception as e:
         print(f"An error occurred: {e}")
+
 
 if __name__ == "__main__":
     main()
