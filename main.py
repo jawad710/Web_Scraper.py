@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import json
 from dataclasses import dataclass, asdict
 import os
+import re
+from datetime import datetime
 
 
 @dataclass
@@ -16,19 +18,30 @@ class Article:
     last_updated_date: str
     author: str
     content: str
+    video_duration: str
+    word_count: int
+    classes: list  # Added to store classes metadata
 
 
 class SitemapParser:
-    def __init__(self, start_year, end_year):
-        self.start_year = start_year
-        self.end_year = end_year
+    def __init__(self):
+        self.current_date = datetime.now()
 
     def generate_sitemap_urls(self):
         sitemap_urls = []
-        for year in range(self.start_year, self.end_year + 1):
-            for month in range(1, 13):
-                sitemap_url = f"https://www.almayadeen.net/sitemaps/all/sitemap-{year}-{month}.xml"
-                sitemap_urls.append(sitemap_url)
+        year = 2020
+        month =11
+
+        while year > 2010:  # Arbitrary cutoff year to stop
+            sitemap_url = f"https://www.almayadeen.net/sitemaps/all/sitemap-{year}-{month:02}.xml"
+            sitemap_urls.append(sitemap_url)
+
+            # Move to the previous month
+            month -= 1
+            if month == 0:
+                month = 12
+                year -= 1
+
         return sitemap_urls
 
     def get_article_urls(self, sitemap_url):
@@ -56,55 +69,39 @@ class ArticleScraper:
             response.raise_for_status()  # Raise an error for HTTP issues
             soup = BeautifulSoup(response.content, 'html.parser')
 
-            # Check if the page has a recognizable structure for an article
-            article_content = soup.find_all('p')
-            if not article_content:
-                print(f"Skipping non-article page: {self.url}")
+            # Ensure the page contains the "tawsiyat-metadata" script
+            script_tag = soup.find('script', {'id': 'tawsiyat-metadata', 'type': 'text/tawsiyat'})
+            if not script_tag:
+                print(f"Skipping non-article page (no 'tawsiyat' metadata): {self.url}")
                 return None
 
-            # Initialize metadata dictionary
-            metadata = {}
-
-            # Try to extract JSON-LD metadata
-            json_ld_script = soup.find('script', type='application/ld+json')
-            if json_ld_script:
-                try:
-                    metadata = json.loads(json_ld_script.string)
-                except json.JSONDecodeError as e:
-                    print(f"Warning: Failed to parse JSON-LD for article {self.url}. Error: {e}")
-                    print(f"Raw JSON data: {json_ld_script.string}")
-
-            # If JSON-LD is not found, check for meta tags
-            if not metadata:
-                metadata = {
-                    'title': soup.find('meta', attrs={'property': 'og:title'})['content'] if soup.find('meta', attrs={'property': 'og:title'}) else 'No Title',
-                    'keywords': soup.find('meta', attrs={'name': 'keywords'})['content'].split(',') if soup.find('meta', attrs={'name': 'keywords'}) else [],
-                    'thumbnail': soup.find('meta', attrs={'property': 'og:image'})['content'] if soup.find('meta', attrs={'property': 'og:image'}) else 'No Thumbnail',
-                    'publication_date': soup.find('meta', attrs={'property': 'article:published_time'})['content'] if soup.find('meta', attrs={'property': 'article:published_time'}) else 'No Date',
-                    'last_updated_date': soup.find('meta', attrs={'property': 'article:modified_time'})['content'] if soup.find('meta', attrs={'property': 'article:modified_time'}) else 'No Date',
-                    'author': soup.find('meta', attrs={'name': 'author'})['content'] if soup.find('meta', attrs={'name': 'author'}) else 'No Author'
-                }
+            try:
+                metadata = json.loads(script_tag.string)
+            except json.JSONDecodeError as e:
+                print(f"Warning: Failed to parse JSON-LD for article {self.url}. Error: {e}")
+                return None
 
             # Extract main article content from <p> tags
-            content = ' '.join([p.get_text() for p in article_content])
+            content = ' '.join([p.get_text() for p in soup.find_all('p')])
+            word_count = len(content.split())
 
             return Article(
                 url=self.url,
-                post_id=self.extract_post_id(),
+                post_id=metadata.get('postid', 'No Post ID'),
                 title=metadata.get('title', 'No Title'),
                 keywords=metadata.get('keywords', []),
                 thumbnail=metadata.get('thumbnail', 'No Thumbnail'),
-                publication_date=metadata.get('publication_date', 'No Date'),
-                last_updated_date=metadata.get('last_updated_date', 'No Date'),
+                publication_date=metadata.get('published_time', 'No Date'),
+                last_updated_date=metadata.get('last_updated', 'No Date'),
                 author=metadata.get('author', 'No Author'),
-                content=content
+                content=content,
+                video_duration=metadata.get('video_duration', None),
+                word_count=word_count,
+                classes=metadata.get('classes', [])  # Extracting classes metadata
             )
         except Exception as e:
             print(f"Error scraping article {self.url}: {e}")
             return None
-
-    def extract_post_id(self):
-        return self.url.split('-')[-1]
 
 
 class FileUtility:
@@ -114,22 +111,25 @@ class FileUtility:
         self.directory = f'./data/{self.year}_{self.month}'
         os.makedirs(self.directory, exist_ok=True)
 
+    def sanitize_filename(self, name):
+        # Remove any characters that aren't alphanumeric or basic punctuation
+        return re.sub(r'[<>:"/\\|?*]+', '', name)
+
     def save_article(self, article):
         if not article:
             print("No article to save.")
             return
-        filename = f'{self.directory}/article_{article.post_id}.json'
+        sanitized_post_id = self.sanitize_filename(article.post_id)
+        filename = f'{self.directory}/article_{sanitized_post_id}.json'
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(asdict(article), f, ensure_ascii=False, indent=4)
         print(f"Saved article to {filename}")
 
 
 def main():
-    start_year = 2020
-    end_year = 2024
-    max_articles = 10000
+    max_articles = 2000
     total_articles = 0
-    parser = SitemapParser(start_year, end_year)
+    parser = SitemapParser()
     sitemap_urls = parser.generate_sitemap_urls()
 
     try:
@@ -154,6 +154,7 @@ def main():
                 if article:  # Only save valid articles
                     file_utility.save_article(article)
                     total_articles += 1
+                    print(f"Processed article {total_articles}/{max_articles}")
 
             print(f"Processed {len(article_urls)} articles for {year}-{month}. Total so far: {total_articles}")
 
