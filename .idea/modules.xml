@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/bootcamp-project.iml" filepath="$PROJECT_DIR$/.idea/bootcamp-project.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/Web_Scraper.iml" filepath="$PROJECT_DIR$/.idea/Web_Scraper.iml" />
     </modules>
   </component>
 </project>
