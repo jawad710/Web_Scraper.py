@@ -96,16 +96,6 @@ def articles_grouped_by_coverage():
     result = list(collection.aggregate(pipeline))
     return jsonify(result)
 
-# Route for getting most updated articles
-@app.route('/most_updated_articles', methods=['GET'])
-def most_updated_articles():
-    pipeline = [
-        {"$project": {"title": 1, "update_count": {"$subtract": [{"$strLenCP": "$last_updated_date"}, {"$strLenCP": "$publication_date"}]}}},
-        {"$sort": {"update_count": -1}},
-        {"$limit": 10}
-    ]
-    result = list(collection.aggregate(pipeline))
-    return jsonify(result)
 
 # Route for getting articles by language
 @app.route('/articles_by_language', methods=['GET'])
@@ -184,34 +174,56 @@ def articles_by_year(year):
 @app.route('/longest_articles', methods=['GET'])
 def longest_articles():
     pipeline = [
-        {"$project": {"title": 1, "word_count": {"$size": {"$split": ["$content", " "]}}}},
+        {
+            "$project": {
+                "title": 1,
+                "word_count": {"$size": {"$split": ["$content", " "]}}
+            }
+        },
         {"$sort": {"word_count": -1}},
         {"$limit": 10}
     ]
     result = list(collection.aggregate(pipeline))
+
+    for item in result:
+        item["_id"] = str(item.get("_id"))
+
     return jsonify(result)
 
 # Route for getting shortest article
 @app.route('/shortest_articles', methods=['GET'])
 def shortest_articles():
     pipeline = [
-        {"$project": {"title": 1, "word_count": {"$size": {"$split": ["$content", " "]}}}},
+        {
+            "$project": {
+                "title": 1,
+                "word_count": {"$size": {"$split": ["$content", " "]}}
+            }
+        },
         {"$sort": {"word_count": 1}},
         {"$limit": 10}
     ]
     result = list(collection.aggregate(pipeline))
+    for item in result:
+        item["_id"] = str(item.get("_id"))
+
     return jsonify(result)
 
 # Route for getting article by keyword count
 @app.route('/articles_by_keyword_count', methods=['GET'])
 def articles_by_keyword_count():
     pipeline = [
-        {"$project": {"keyword_count": {"$size": "$keywords"}}},
-        {"$group": {"_id": "$keyword_count", "count": {"$sum": 1}}},
+        # Ensure `keywords` is an array and count the number of keywords
+        {"$addFields": {"keywords_count": "$count"}},
+        # Group by the number of keywords and count the occurrences
+        {"$group": {"_id": "$keywords", "count": {"$sum": 1}}},
+        # Sort by the number of keywords count
         {"$sort": {"_id": 1}}
     ]
     result = list(collection.aggregate(pipeline))
     return jsonify(result)
+
+
 
 # Route for getting articles with thumbnail
 @app.route('/articles_with_thumbnail', methods=['GET'])
@@ -288,6 +300,7 @@ def articles_with_more_than(word_count):
     ]
     result = list(collection.aggregate(pipeline))
     return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
