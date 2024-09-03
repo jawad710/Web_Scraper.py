@@ -1,6 +1,8 @@
 from flask import Flask, jsonify
 from pymongo import MongoClient, UpdateOne
 from datetime import datetime, timedelta
+from bson import ObjectId
+
 
 app = Flask(__name__)
 
@@ -235,12 +237,26 @@ def articles_with_thumbnail():
 @app.route('/articles_updated_after_publication', methods=['GET'])
 def articles_updated_after_publication():
     pipeline = [
-        {"$addFields": {"publication_date": {"$dateFromString": {"dateString": "$publication_date"}},
-                        "last_updated_date": {"$dateFromString": {"dateString": "$last_updated_date"}}}},
-        {"$match": {"$expr": {"$gt": ["$last_updated_date", "$publication_date"]}}},
+        {
+            "$match": {
+                "$expr": {
+                    "$gt": [
+                        {"$toDate": "$last_updated_date"},
+                        {"$toDate": "$publication_date"}
+                    ]
+                }
+            }
+        }
     ]
     result = list(collection.aggregate(pipeline))
+
+    # Convert ObjectId to string for JSON serialization
+    for doc in result:
+        if '_id' in doc:
+            doc['_id'] = str(doc['_id'])
+
     return jsonify(result)
+
 
 # Route for getting articles by coverage
 @app.route('/articles_by_coverage/<coverage>', methods=['GET'])
