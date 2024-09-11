@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from pymongo import MongoClient, UpdateOne
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -25,7 +25,6 @@ def convert_string_dates_to_iso():
         except Exception as e:
             print(f"Error converting date for article {article['_id']}: {e}")
 
-    # Execute the bulk operations if there are any
     if bulk_operations:
         collection.bulk_write(bulk_operations)
 
@@ -40,6 +39,11 @@ def top_keywords():
     ]
     result = list(collection.aggregate(pipeline))
     return jsonify(result)
+
+# Route for rendering the chart HTML files
+@app.route('/chart/<Top_keyword>', methods=['GET','POST'])
+def chart(Top_keyword):
+    return render_template(f'{Top_keyword}.html')
 
 # Route for getting top authors
 @app.route('/top_authors', methods=['GET'])

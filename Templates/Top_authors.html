@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Authors Bar Chart</title>
+    <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+    <style>
+        #chartdiv {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
+</head>
+<body>
+<div id="chartdiv"></div>
+<script>
+    am5.ready(function() {
+        var root = am5.Root.new("chartdiv");
+        root.setThemes([am5themes_Animated.new(root)]);
+
+        var chart = root.container.children.push(am5xy.XYChart.new(root, {}));
+        var xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "author" }));
+        var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { });
+
+        var series = chart.series.push(am5xy.ColumnSeries.new(root, { name: "Articles", xAxis: xAxis, yAxis: yAxis, valueYField: "count", categoryXField: "author" }));
+
+        fetch('/top_authors')
+            .then(response => response.json())
+            .then(data => {
+                series.data.setAll(data.map(item => ({ author: item._id, count: item.count })));
+                xAxis.data.setAll(data.map(item => ({ author: item._id })));
+            })
+            .catch(error => console.error('Error fetching data:', error));
+    });
+</script>
+</body>
+</html>

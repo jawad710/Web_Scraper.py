@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Keywords</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/wordCloud.js"></script>
+</head>
+<body>
+    <div class="chart-container">
+        <h1 class="chart-title">Top Keywords</h1>
+        <div id="chartdiv"></div>
+    </div>
+
+    <script>
+        am5.ready(function() {
+            var root = am5.Root.new("chartdiv");
+
+            var chart = root.container.children.push(am5.WordCloud.new(root, {}));
+            var series = chart.series.push(am5.WordCloudSeries.new(root, {
+                valueField: "count",
+                categoryField: "_id"
+            }));
+
+            fetch('http://127.0.0.1:5000/top_keywords')
+                .then(response => response.json())
+                .then(data => {
+                    series.data.setAll(data);
+                });
+
+            series.appear(1000);
+            chart.appear(1000, 100);
+        });
+    </script>
+</body>
+</html>
