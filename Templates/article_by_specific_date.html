@@ -2,54 +2,60 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Articles by Date</title>
+    <title>Articles by Specific Date</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        #chartdiv {
-            width: 100%;
-            height: 500px;
-        }
+        #chartdiv { width: 100%; height: 500px; }
     </style>
-</head>
-<body>
     <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+</head>
+<body>
+    <div id="chartdiv"></div>
+
     <script>
+        // Apply animated theme
         am4core.useTheme(am4themes_animated);
 
+        // Create chart instance
         var chart = am4core.create("chartdiv", am4charts.XYChart);
 
+        // Set up the date axis (X axis)
         var dateAxis = chart.xAxes.push(new am4charts.DateAxis());
-        var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
+        dateAxis.renderer.grid.template.location = 0;
+        dateAxis.title.text = "Date";
 
+        // Set up the value axis (Y axis)
+        var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
+        valueAxis.title.text = "Article Count";
+
+        // Create series
         var series = chart.series.push(new am4charts.LineSeries());
         series.dataFields.valueY = "count";
         series.dataFields.dateX = "date";
-        series.tooltipText = "{date}: {count}";
+        series.name = "Articles";
         series.strokeWidth = 2;
-        series.minBulletDistance = 10;
+        series.tooltipText = "{date}: {count}";
 
-        series.tooltip.pointerOrientation = "vertical";
+        // Add bullets (markers) to the line chart
+        series.bullets.push(new am4charts.CircleBullet());
 
+        // Add cursor for better interaction
         chart.cursor = new am4charts.XYCursor();
-        chart.cursor.xAxis = dateAxis;
         chart.cursor.snapToSeries = series;
+        chart.cursor.xAxis = dateAxis;
 
-        fetch('http://127.0.0.1:5000/articles_by_date')
+        // Fetch data from API
+        fetch('http://127.0.0.1:5000/articles_by_specific_date')
             .then(response => response.json())
             .then(data => {
-                chart.data = data.map(item => ({ date: new Date(item._id), count: item.count }));
-
-                setInterval(function () {
-                    let dataItem = series.dataItems.getIndex(Math.floor(Math.random() * series.dataItems.length));
-                    dataItem.value = Math.floor(Math.random() * 10);
-                }, 10000);
+                // Convert response data to chart format
+                chart.data = data.map(item => ({
+                    date: new Date(item.date),
+                    count: item.count
+                }));
             })
             .catch(error => console.error('Error fetching data:', error));
     </script>
-    <div id="chartdiv"></div>
 </body>
 </html>

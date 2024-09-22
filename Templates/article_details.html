@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Article Details</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <table id="detailsTable">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Keywords</th>
+                <th>Publication Date</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        fetch('http://127.0.0.1:5000/article_details')
+            .then(response => response.json())
+            .then(data => {
+                const tableBody = document.querySelector('#detailsTable tbody');
+                data.forEach(item => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = item.title;
+                    row.insertCell().textContent = item.keywords;
+                    row.insertCell().textContent = item.publication_date;
+                });
+            })
+            .catch(error => console.error('Error fetching data:', error));
+    </script>
+</body>
+</html>

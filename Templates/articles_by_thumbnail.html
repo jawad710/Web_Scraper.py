@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Articles by Language</title>
+    <title>Articles by Thumbnail</title>
     <style>
         #chartdiv { width: 100%; height: 500px; }
     </style>
@@ -19,17 +19,17 @@
 
         var pieSeries = chart.series.push(new am4charts.PieSeries());
         pieSeries.dataFields.value = "count";
-        pieSeries.dataFields.category = "language";
+        pieSeries.dataFields.category = "thumbnail";
+        pieSeries.slices.template.tooltipText = "{category}: {count}";
 
-        fetch('http://127.0.0.1:5000/articles_by_language')
+        fetch('http://127.0.0.1:5000/articles_by_thumbnail')
             .then(response => response.json())
             .then(data => {
-                chart.data = data.map(item => ({ language: item._id, count: item.count }));
-
-                setInterval(function () {
-                    let dataItem = pieSeries.dataItems.getIndex(Math.floor(Math.random() * pieSeries.dataItems.length));
-                    dataItem.value = Math.floor(Math.random() * 10);
-                }, 10000);
+                // Use actual thumbnail values and map null values as "No Thumbnail"
+                chart.data = data.map(item => ({
+                    thumbnail: item._id ? item._id : "No Thumbnail",  // Show actual thumbnail or "No Thumbnail"
+                    count: item.count
+                }));
             })
             .catch(error => console.error('Error fetching data:', error));
     </script>

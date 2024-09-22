@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Articles by Language</title>
+    <title>Top Classes</title>
     <style>
         #chartdiv { width: 100%; height: 500px; }
     </style>
@@ -19,12 +19,12 @@
 
         var pieSeries = chart.series.push(new am4charts.PieSeries());
         pieSeries.dataFields.value = "count";
-        pieSeries.dataFields.category = "language";
+        pieSeries.dataFields.category = "classes";
 
-        fetch('http://127.0.0.1:5000/articles_by_language')
+        fetch('http://127.0.0.1:5000/top_classes')
             .then(response => response.json())
             .then(data => {
-                chart.data = data.map(item => ({ language: item._id, count: item.count }));
+                chart.data = data.map(item => ({ classes: item._id, count: item.count }));
 
                 setInterval(function () {
                     let dataItem = pieSeries.dataItems.getIndex(Math.floor(Math.random() * pieSeries.dataItems.length));

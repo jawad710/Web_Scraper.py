@@ -2,43 +2,43 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Articles by Word Count</title>
+    <title>Articles by Author</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        #chartdiv {
-            width: 100%;
-            height: 500px;
-        }
+        #chartdiv { width: 100%; height: 500px; }
     </style>
-</head>
-<body>
     <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+</head>
+<body>
+    <div id="chartdiv"></div>
     <script>
         am4core.useTheme(am4themes_animated);
 
         var chart = am4core.create("chartdiv", am4charts.XYChart);
 
+        chart.data = [];
+
         var categoryAxis = chart.xAxes.push(new am4charts.CategoryAxis());
-        categoryAxis.dataFields.category = "wordCount";
-        categoryAxis.title.text = "Word Count Ranges";
+        categoryAxis.dataFields.category = "author";
+        categoryAxis.renderer.grid.template.location = 0;
 
         var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
-        valueAxis.title.text = "Number of Articles";
 
         var series = chart.series.push(new am4charts.ColumnSeries());
         series.dataFields.valueY = "count";
-        series.dataFields.categoryX = "wordCount";
-        series.tooltipText = "{categoryX}: {valueY}";
+        series.dataFields.categoryX = "author";
+        series.columns.template.tooltipText = "{author}: {count}";
         series.columns.template.fillOpacity = .8;
 
-        fetch('http://127.0.0.1:5000/articles_by_word_count')
+        var columnTemplate = series.columns.template;
+        columnTemplate.strokeWidth = 2;
+        columnTemplate.strokeOpacity = 1;
+
+        fetch('http://127.0.0.1:5000/articles_by_authors')
             .then(response => response.json())
             .then(data => {
-                chart.data = data.map(item => ({ wordCount: item._id, count: item.count }));
+                chart.data = data.map(item => ({ author: item._id, count: item.article_count }));
 
                 setInterval(function () {
                     let dataItem = series.dataItems.getIndex(Math.floor(Math.random() * series.dataItems.length));
@@ -47,6 +47,5 @@
             })
             .catch(error => console.error('Error fetching data:', error));
     </script>
-    <div id="chartdiv"></div>
 </body>
 </html>

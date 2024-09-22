@@ -2,54 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Articles by Date</title>
+    <title>Most Popular Keywords in Last 7 Days</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        #chartdiv {
-            width: 100%;
-            height: 500px;
-        }
+        #chartdiv { width: 100%; height: 500px; }
     </style>
-</head>
-<body>
     <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+</head>
+<body>
+    <div id="chartdiv"></div>
     <script>
         am4core.useTheme(am4themes_animated);
 
         var chart = am4core.create("chartdiv", am4charts.XYChart);
 
         var dateAxis = chart.xAxes.push(new am4charts.DateAxis());
+        dateAxis.renderer.grid.template.location = 0;
+
         var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
 
         var series = chart.series.push(new am4charts.LineSeries());
         series.dataFields.valueY = "count";
         series.dataFields.dateX = "date";
-        series.tooltipText = "{date}: {count}";
+        series.tooltipText = "{date}: {count} keywords";
         series.strokeWidth = 2;
-        series.minBulletDistance = 10;
 
-        series.tooltip.pointerOrientation = "vertical";
-
-        chart.cursor = new am4charts.XYCursor();
-        chart.cursor.xAxis = dateAxis;
-        chart.cursor.snapToSeries = series;
-
-        fetch('http://127.0.0.1:5000/articles_by_date')
+        fetch('http://127.0.0.1:5000/popular_keywords_last_X_days/900')
             .then(response => response.json())
             .then(data => {
-                chart.data = data.map(item => ({ date: new Date(item._id), count: item.count }));
-
-                setInterval(function () {
-                    let dataItem = series.dataItems.getIndex(Math.floor(Math.random() * series.dataItems.length));
-                    dataItem.value = Math.floor(Math.random() * 10);
-                }, 10000);
+                chart.data = data.map(item => ({ date: new Date(item.date).toLocaleDateString(), count: item.count }));
             })
             .catch(error => console.error('Error fetching data:', error));
     </script>
-    <div id="chartdiv"></div>
 </body>
 </html>

@@ -2,37 +2,73 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Top Keywords</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
-    <script src="https://cdn.amcharts.com/lib/5/wordCloud.js"></script>
+    <title>Word Cloud</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        }
+        #chartdiv {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
 </head>
 <body>
-    <div class="chart-container">
-        <h1 class="chart-title">Top Keywords</h1>
-        <div id="chartdiv"></div>
-    </div>
+    <!-- Resources -->
+    <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
+    <script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
+    <script src="https://cdn.amcharts.com/lib/4/plugins/wordCloud.js"></script>
+    <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
 
+    <!-- Chart code -->
     <script>
-        am5.ready(function() {
-            var root = am5.Root.new("chartdiv");
+        // Themes begin
+        am4core.useTheme(am4themes_animated);
+        // Themes end
 
-            var chart = root.container.children.push(am5.WordCloud.new(root, {}));
-            var series = chart.series.push(am5.WordCloudSeries.new(root, {
-                valueField: "count",
-                categoryField: "_id"
-            }));
+        // Create chart instance
+        var chart = am4core.create("chartdiv", am4plugins_wordCloud.WordCloud);
 
-            fetch('http://127.0.0.1:5000/top_keywords')
-                .then(response => response.json())
-                .then(data => {
-                    series.data.setAll(data);
-                });
+        // Create series
+        var series = chart.series.push(new am4plugins_wordCloud.WordCloudSeries());
 
-            series.appear(1000);
-            chart.appear(1000, 100);
-        });
+        // Set default properties
+        series.accuracy = 4;
+        series.step = 15;
+        series.rotationThreshold = 0.7;
+        series.maxCount = 200;
+        series.minWordLength = 2;
+        series.labels.template.margin(4, 4, 4, 4);
+        series.maxFontSize = am4core.percent(30);
+
+        // Fetch data from the API
+        fetch('http://127.0.0.1:5000/top_keywords')
+            .then(response => response.json())
+            .then(data => {
+                // Prepare the data
+                let wordCloudData = data.map(item => ({ word: item._id, weight: item.count }));
+
+                // Set the data for the series
+                series.data = wordCloudData;
+
+                // Configure colors and tooltips
+                series.colors = new am4core.ColorSet();
+                series.colors.passOptions = {}; // Makes it loop
+                series.labels.template.tooltipText = "{word}: {weight}";
+
+                // Adjust label appearance
+                series.labels.template.fontWeight = "700";
+
+                // Randomly update data values every 10 seconds
+                setInterval(function () {
+                    let dataItem = series.dataItems.getIndex(Math.floor(Math.random() * series.dataItems.length));
+                    dataItem.value = Math.floor(Math.random() * 10);
+                }, 10000);
+            })
+            .catch(error => console.error('Error fetching data:', error));
     </script>
+
+    <!-- HTML -->
+    <div id="chartdiv"></div>
 </body>
 </html>

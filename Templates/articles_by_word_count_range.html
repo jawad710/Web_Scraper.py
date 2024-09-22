@@ -2,51 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Articles by Word Count</title>
+    <title>Articles by Word Count Range</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        #chartdiv {
-            width: 100%;
-            height: 500px;
-        }
+        #chartdiv { width: 100%; height: 500px; }
     </style>
-</head>
-<body>
     <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+</head>
+<body>
+    <div id="chartdiv"></div>
     <script>
         am4core.useTheme(am4themes_animated);
 
         var chart = am4core.create("chartdiv", am4charts.XYChart);
 
         var categoryAxis = chart.xAxes.push(new am4charts.CategoryAxis());
-        categoryAxis.dataFields.category = "wordCount";
-        categoryAxis.title.text = "Word Count Ranges";
+        categoryAxis.dataFields.category = "wordCountRange";
+        categoryAxis.renderer.grid.template.location = 0;
 
         var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
-        valueAxis.title.text = "Number of Articles";
 
         var series = chart.series.push(new am4charts.ColumnSeries());
         series.dataFields.valueY = "count";
-        series.dataFields.categoryX = "wordCount";
-        series.tooltipText = "{categoryX}: {valueY}";
+        series.dataFields.categoryX = "wordCountRange";
+        series.tooltipText = "{wordCountRange} words: {count}";
         series.columns.template.fillOpacity = .8;
 
-        fetch('http://127.0.0.1:5000/articles_by_word_count')
+        fetch('http://127.0.0.1:5000/articles_by_word_count_range')
             .then(response => response.json())
             .then(data => {
-                chart.data = data.map(item => ({ wordCount: item._id, count: item.count }));
-
-                setInterval(function () {
-                    let dataItem = series.dataItems.getIndex(Math.floor(Math.random() * series.dataItems.length));
-                    dataItem.value = Math.floor(Math.random() * 10);
-                }, 10000);
+                chart.data = data.map(item => ({ wordCountRange: item._id, count: item.count }));
             })
             .catch(error => console.error('Error fetching data:', error));
     </script>
-    <div id="chartdiv"></div>
 </body>
 </html>
